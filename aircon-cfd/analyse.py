@@ -161,7 +161,7 @@ def slice_plots(name, d, r):
     geom = mc.GEOMS[d["md"]["geom"]]
     sx = 0.5 * sum(geom["sup"])
     mode = d["md"]["mode"]
-    vmin, vmax = (16, 28) if mode == "cool" else (17, 29)
+    vmin, vmax = (16, 28) if mode == "cool" else (12, 30)
     fig, axs = plt.subplots(1, 3, figsize=(15, 4.3), gridspec_kw=dict(width_ratios=[4.6, 4.1, 4.1]))
     # (a) section through supply centre (y-z)
     i = np.argmin(abs(xs - sx))
