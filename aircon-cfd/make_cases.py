@@ -77,7 +77,7 @@ RUNS = {
     "heat_A2_separated_down30": ("A2_separated", "heat", 30, 1),
     "heat_B_ceiling_down30":    ("B_ceiling",    "heat", 30, 1),
     "cool_A1_adjacent_down30":  ("A1_adjacent",  "cool", 30, 1),
-    # mesh-sensitivity checks (2x finer in x and y)
+    # mesh-sensitivity checks (2x finer grille / ceiling-jet band)
     "cool_A1_adjacent_fine": ("A1_adjacent",  "cool", 0, 2),
     "heat_A1_adjacent_fine": ("A1_adjacent",  "heat", 0, 2),
 }
@@ -118,9 +118,9 @@ def make(name, geom, mode, angle, refine):
     shutil.rmtree(case, ignore_errors=True)
     os.makedirs(case)
 
-    # ---------------- mesh: dx = dy = 0.1/refine; dz = 0.1 below 2.3 m,
-    # 0.015 m in the top 0.6 m (grille / ceiling-jet band)
-    nx, ny = int(round(41 * refine)), int(round(46 * refine))
+    # ---------------- mesh: dx = dy = 0.1; dz = 0.1 below 2.3 m and
+    # 0.03/refine m in the top 0.6 m (grille / ceiling-jet band)
+    nx, ny, nzt = 41, 46, 20 * refine
     w(case, "system/blockMeshDict", "dictionary", f"""
 convertToMeters 1;
 vertices
@@ -130,8 +130,8 @@ vertices
 );
 blocks
 (
- hex (0 1 2 3 4 5 6 7) ({nx} {ny} 63)
- simpleGrading (1 1 ((2.3 23 1) (0.6 40 1)))
+ hex (0 1 2 3 4 5 6 7) ({nx} {ny} {23 + nzt})
+ simpleGrading (1 1 ((2.3 23 1) (0.6 {nzt} 1)))
 );
 boundary
 (
@@ -254,7 +254,7 @@ RAS { RASModel RNGkEpsilon; turbulence on; printCoeffs on; }
     })
 
     # ---------------- system
-    iters, avg_from = 3000, 1500
+    iters, avg_from = 1000, 500
     w(case, "system/controlDict", "dictionary", f"""
 application buoyantBoussinesqSimpleFoam;
 startFrom latestTime; startTime 0; stopAt endTime; endTime {iters};
@@ -355,8 +355,8 @@ topoSet > log.topoSet 2>&1 &&
 createPatch -overwrite > log.createPatch 2>&1 &&
 checkMesh > log.checkMesh 2>&1 &&
 buoyantBoussinesqSimpleFoam > log.solver 2>&1 &&
-postProcess -func writeCellCentres -latestTime > log.cc 2>&1 &&
-postProcess -func writeCellVolumes -latestTime > log.cv 2>&1
+python3 ../../to_transient.py . > log.convert 2>&1 &&
+exec ./Allrun.transient
 echo "$? $(basename $PWD)" > done
 """)
     os.chmod(os.path.join(case, "Allrun"), 0o755)
