@@ -191,8 +191,9 @@ def slice_plots(name, d, r):
     ax.plot(geom["sup"], [0.03, 0.03], color="#2a78d6" if mode == "cool" else "#eb6834", lw=5,
             solid_capstyle="butt", label="supply")
     rr = geom["ret"]
-    if rr[0] == "wall":
-        ax.plot(rr[1:3], [0.03, 0.03], color=INK2, lw=5, solid_capstyle="butt", label="return")
+    if rr[0] in ("wall", "lowwall"):
+        ax.plot(rr[1:3], [0.03, 0.03], color=INK2, lw=5, solid_capstyle="butt",
+                label="return" + (" (low, z 0.1–0.2 m)" if rr[0] == "lowwall" else ""))
     else:
         ax.add_patch(plt.Rectangle((rr[1], rr[3]), rr[2] - rr[1], rr[4] - rr[3], fill=False,
                                    ec=INK2, lw=2, label="return (ceiling)"))
@@ -213,9 +214,10 @@ def slice_plots(name, d, r):
 LABEL = {"A1_adjacent": "A1 twin grilles, adjacent",
          "A2_separated": "A2 twin grilles, opposite ends",
          "A3_fullwidth": "A3 full-width split strip",
-         "B_ceiling": "B wall supply + ceiling return"}
+         "B_ceiling": "B wall supply + ceiling return",
+         "C_lowreturn": "C high supply + low wall return"}
 COL = {"A1_adjacent": "#eb6834", "A2_separated": "#1baf7a",
-       "A3_fullwidth": "#eda100", "B_ceiling": "#2a78d6"}
+       "A3_fullwidth": "#eda100", "B_ceiling": "#2a78d6", "C_lowreturn": "#4a3aa7"}
 
 
 def profile_plot(data):

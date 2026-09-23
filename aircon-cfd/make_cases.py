@@ -28,6 +28,8 @@ GEOMS = {
     "A2_separated": dict(sup=(0.2, 1.4), ret=("wall", 2.7, 3.9)),
     # one continuous full-width strip: left half supply, right half return
     "A3_fullwidth": dict(sup=(0.1, 2.0), ret=("wall", 2.1, 4.0)),
+    # reference fix for heating: same high supply, return low on the same wall
+    "C_lowreturn":  dict(sup=(0.8, 2.0), ret=("lowwall", 2.1, 3.3)),
     # centred wall supply + 600x400 ceiling return near the far wall
     "B_ceiling":    dict(sup=(1.4, 2.6), ret=("ceiling", 1.7, 2.3, 3.7, 4.1)),
 }
@@ -80,6 +82,7 @@ RUNS = {
     "heat_A2_separated_down30": ("A2_separated", "heat", 30, 1),
     "heat_B_ceiling_down30":    ("B_ceiling",    "heat", 30, 1),
     "cool_A1_adjacent_down30":  ("A1_adjacent",  "cool", 30, 1),
+    "heat_C_lowreturn":         ("C_lowreturn",  "heat", 0, 1),
     "heat_A1_adjacent_down45":  ("A1_adjacent",  "heat", 45, 1),
     "heat_A2_separated_down45": ("A2_separated", "heat", 45, 1),
     # mesh-sensitivity checks (2x finer grille / ceiling-jet band)
@@ -153,6 +156,9 @@ boundary
     if r[0] == "wall":
         rbox = f"({r[1]-e} {-e} {Z_GRILLE[0]-e}) ({r[2]+e} {e} {Z_GRILLE[1]+e})"
         ret_area = (r[2] - r[1]) * (Z_GRILLE[1] - Z_GRILLE[0])
+    elif r[0] == "lowwall":   # z = 0.1 .. 0.2 (on the 0.1 m mesh lines)
+        rbox = f"({r[1]-e} {-e} {0.1-e}) ({r[2]+e} {e} {0.2+e})"
+        ret_area = (r[2] - r[1]) * 0.1
     else:
         rbox = f"({r[1]-e} {r[3]-e} {LZ-e}) ({r[2]+e} {r[4]+e} {LZ+e})"
         ret_area = (r[2] - r[1]) * (r[4] - r[3])
