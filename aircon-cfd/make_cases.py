@@ -42,12 +42,15 @@ MODES = {
         "ceiling":  150.0,   # roof gain
         "people":   250.0,   # 2 people + TV etc. in occupied zone
     }),
-    "heat": dict(Tsup=34.0, Tinit=22.0, TRef=22.0, loads={
-        "farWall": -800.0,   # window wall
-        "sideL":   -200.0,
-        "sideR":   -200.0,
-        "floor":   -250.0,
-        "ceiling": -250.0,
+    # Heating: envelope losses are UA*(T_local - T_out) (semi-implicit), so a
+    # cold pool loses less than a warm ceiling layer - fixed-watt losses would
+    # grossly exaggerate stratification. UA sized for ~1.7 kW at 21 C / 7 C.
+    "heat": dict(Tsup=34.0, Tinit=22.0, TRef=22.0, Tout=7.0, loads={
+        "farWall": 57.0,     # W/K, window wall
+        "sideL":   14.0,
+        "sideR":   14.0,
+        "floor":   18.0,
+        "ceiling": 18.0,
     }),
 }
 
@@ -191,6 +194,10 @@ RAS { RASModel RNGkEpsilon; turbulence on; printCoeffs on; }
 """)
     fvo = ""
     for zone, W in m["loads"].items():
+        if "Tout" in m:   # UA [W/K]: S = UA*Tout - UA*T
+            su, sp = W * m["Tout"] / RHOCP, -W / RHOCP
+        else:             # fixed heat gain [W]
+            su, sp = W / RHOCP, 0.0
         fvo += f"""
 {zone}Load
 {{
@@ -201,7 +208,7 @@ RAS { RASModel RNGkEpsilon; turbulence on; printCoeffs on; }
         selectionMode cellZone;
         cellZone {zone}Zone;
         volumeMode absolute;
-        injectionRateSuSp {{ T ({W / RHOCP:.6g} 0); }}
+        injectionRateSuSp {{ T ({su:.6g} {sp:.6g}); }}
     }}
 }}
 """
@@ -345,7 +352,8 @@ relaxationFactors
     with open(os.path.join(case, "meta.txt"), "w") as f:
         f.write(f"geom={geom}\nmode={mode}\nangle={angle}\nrefine={refine}\n"
                 f"sup_area={sup_area}\nret_area={ret_area}\nvsup={vn}\n"
-                f"Tsup={Ts}\nQ={Q}\nload={sum(m['loads'].values())}\n")
+                f"Tsup={Ts}\nQ={Q}\nload={sum(m['loads'].values())}\n"
+                + (f"Tout={m['Tout']}\nUA={sum(m['loads'].values())}\n" if "Tout" in m else ""))
     with open(os.path.join(case, "Allrun"), "w") as f:
         f.write("""#!/bin/bash
 cd "${0%/*}" || exit 1

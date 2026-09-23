@@ -83,10 +83,20 @@ def analyse(case):
     occ = (x > lo[0]) & (x < hi[0]) & (y > lo[1]) & (y < hi[1]) & (z > lo[2]) & (z < hi[2])
     Vo = V[occ]
     Tocc = np.average(T[occ], weights=Vo)
-    Tsup, load = float(md["Tsup"]), float(md["load"])
-    dTu = abs(load) / (mc.RHOCP * mc.Q)
+    Tsup = float(md["Tsup"])
     Tret, Tret_sd, _ = fo_mean(case, "Tret", 1)
-    Tret_bal = Tsup + load / (mc.RHOCP * mc.Q)
+    mcp = mc.RHOCP * mc.Q                                   # W/K of supply air
+    ua = "UA" in md
+    if ua:   # heating: envelope losses UA_i (T_zone_i - Tout)
+        Tout = float(md["Tout"])
+        def zoneT(zn):
+            lo_, hi_ = mc.ZONES[zn]
+            sel = (x > lo_[0]) & (x < hi_[0]) & (y > lo_[1]) & (y < hi_[1]) & (z > lo_[2]) & (z < hi_[2])
+            return np.average(T[sel], weights=V[sel])
+        loss = sum(u * (zoneT(zn) - Tout) for zn, u in mc.MODES["heat"]["loads"].items())
+        Tret_bal = Tsup - loss / mcp
+    else:
+        Tret_bal = Tsup + float(md["load"]) / mcp
     # temperature effectiveness from simultaneous window averages of the
     # return and occupied zone (self-consistent even if a small global drift
     # remains; Tret_bal - Tret is reported as the energy-balance residual)
@@ -104,11 +114,26 @@ def analyse(case):
     draught = 100 * Vo[spd[occ] > 0.25].sum() / Vo.sum()
     age_occ = np.average(age[occ], weights=Vo)
     age_ret, _, _ = fo_mean(case, "Tret", 2)
-    # energy at a fixed occupied-zone setpoint (room sensor), fixed airflow & load
+    # energy to hold the occupied zone at the setpoint (room sensor), same airflow
     sp = SET[mode]
-    Tsup_req = sp - dTu / eps if mode == "cool" else sp + dTu / eps
-    Tsup_ideal = sp - dTu if mode == "cool" else sp + dTu
-    elec_vs_ideal = cop_rel(mode, Tsup_ideal) / cop_rel(mode, Tsup_req)
+    if ua:
+        # no fixed sources -> with the flow pattern frozen, (T - Tout) scales
+        # linearly with (Tsup - Tout); this keeps the extra envelope loss of a
+        # hot ceiling layer in the bill
+        kk = (Tocc - Tout) / (Tsup - Tout)
+        Tsup_req = Tout + (sp - Tout) / kk
+        heat_req = mcp * (Tsup - Tret) * (Tsup_req - Tout) / (Tsup - Tout)
+        UAt = float(md["UA"])
+        heat_ideal = UAt * (sp - Tout)
+        Tsup_ideal = sp + heat_ideal / mcp
+        elec_vs_ideal = (heat_req / cop_rel(mode, Tsup_req)) / (heat_ideal / cop_rel(mode, Tsup_ideal))
+        dTu = heat_req / mcp
+    else:
+        dTu = float(md["load"]) / mcp
+        Tsup_req = sp - dTu / eps
+        Tsup_ideal = sp - dTu
+        heat_req = heat_ideal = float(md["load"])
+        elec_vs_ideal = cop_rel(mode, Tsup_ideal) / cop_rel(mode, Tsup_req)
     r = dict(case=os.path.basename(case), geom=md["geom"], mode=mode, angle=int(md["angle"]),
              refine=int(md["refine"]), vsup=float(md["vsup"]),
              Tsup=Tsup, Tret_fo=Tret, Tret_fo_sd=Tret_sd, Tret_bal=Tret_bal,
@@ -118,7 +143,8 @@ def analyse(case):
              strat_01_11=Tz(1.1) - Tz(0.1),
              spd_occ=np.average(spd[occ], weights=Vo), draught_pct=draught, adpi=adpi,
              age_occ=age_occ, age_ret=age_ret, tau_n=TAU_N, ace=age_ret / age_occ,
-             Tsup_req=Tsup_req, elec_vs_ideal=elec_vs_ideal)
+             Tsup_req=Tsup_req, heat_req=heat_req, heat_ideal=heat_ideal,
+             elec_vs_ideal=elec_vs_ideal)
     return r, dict(C=C, T=T, U=U, spd=spd, age=age, zs=zs, prof=prof, md=md)
 
 
