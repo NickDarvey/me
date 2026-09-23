@@ -80,6 +80,8 @@ RUNS = {
     "heat_A2_separated_down30": ("A2_separated", "heat", 30, 1),
     "heat_B_ceiling_down30":    ("B_ceiling",    "heat", 30, 1),
     "cool_A1_adjacent_down30":  ("A1_adjacent",  "cool", 30, 1),
+    "heat_A1_adjacent_down45":  ("A1_adjacent",  "heat", 45, 1),
+    "heat_A2_separated_down45": ("A2_separated", "heat", 45, 1),
     # mesh-sensitivity checks (2x finer grille / ceiling-jet band)
     "cool_A1_adjacent_fine": ("A1_adjacent",  "cool", 0, 2),
     "heat_A1_adjacent_fine": ("A1_adjacent",  "heat", 0, 2),
