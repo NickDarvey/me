@@ -43,11 +43,19 @@ def last_time(case):
     return max(ts, key=float)
 
 
+def avg_start(case):
+    s = open(os.path.join(case, "system/controlDict")).read()
+    return float(re.search(r"timeStart (\S+);", s).group(1))
+
+
 def fo_mean(case, fo, col):
-    f = glob.glob(os.path.join(case, "postProcessing", fo, "*", "*.dat"))[0]
-    a = np.atleast_2d(np.loadtxt(f, comments="#"))
-    half = a[a[:, 0] >= a[-1, 0] / 2]
-    return half[:, col].mean(), half[:, col].std(), a
+    """Mean/std of a function-object signal over the fieldAverage window
+    (the transient run; the steady spin-up writes to a different time dir)."""
+    fs = sorted(glob.glob(os.path.join(case, "postProcessing", fo, "*", "*.dat")),
+                key=lambda p: float(p.split(os.sep)[-2]))
+    a = np.atleast_2d(np.loadtxt(fs[-1], comments="#"))
+    w = a[a[:, 0] >= avg_start(case)]
+    return w[:, col].mean(), w[:, col].std(), a
 
 
 def meta(case):
@@ -79,7 +87,10 @@ def analyse(case):
     dTu = abs(load) / (mc.RHOCP * mc.Q)
     Tret, Tret_sd, _ = fo_mean(case, "Tret", 1)
     Tret_bal = Tsup + load / (mc.RHOCP * mc.Q)
-    eps = (Tret_bal - Tsup) / (Tocc - Tsup)                 # temperature effectiveness
+    # temperature effectiveness from simultaneous window averages of the
+    # return and occupied zone (self-consistent even if a small global drift
+    # remains; Tret_bal - Tret is reported as the energy-balance residual)
+    eps = (Tret - Tsup) / (Tocc - Tsup)
     # vertical profile over the occupied footprint
     foot = (x > lo[0]) & (x < hi[0]) & (y > lo[1]) & (y < hi[1])
     zs = np.unique(np.round(z[foot], 4))
@@ -102,11 +113,11 @@ def analyse(case):
              refine=int(md["refine"]), vsup=float(md["vsup"]),
              Tsup=Tsup, Tret_fo=Tret, Tret_fo_sd=Tret_sd, Tret_bal=Tret_bal,
              Tocc=Tocc, eps=eps, bypass_equiv=1 - eps,
-             ret_minus_occ=Tret_bal - Tocc,
+             ret_minus_occ=Tret - Tocc, balance_residual=Tret_bal - Tret,
              T_ankle=Tz(0.1), T_seated_head=Tz(1.1), T_stand_head=Tz(1.7), T_ceiling=Tz(2.8),
              strat_01_11=Tz(1.1) - Tz(0.1),
              spd_occ=np.average(spd[occ], weights=Vo), draught_pct=draught, adpi=adpi,
-             age_occ=age_occ, age_ret=age_ret, tau_n=TAU_N, ace=TAU_N / age_occ,
+             age_occ=age_occ, age_ret=age_ret, tau_n=TAU_N, ace=age_ret / age_occ,
              Tsup_req=Tsup_req, elec_vs_ideal=elec_vs_ideal)
     return r, dict(C=C, T=T, U=U, spd=spd, age=age, zs=zs, prof=prof, md=md)
 
@@ -166,7 +177,7 @@ def slice_plots(name, d, r):
         a.set_aspect("equal")
     cb = fig.colorbar(cf, ax=axs, shrink=.85, pad=.01)
     cb.set_label("mean air temperature [°C]")
-    fig.suptitle(f"{name}   ·   occupied-zone {r['Tocc']:.1f} °C, return {r['Tret_bal']:.1f} °C, "
+    fig.suptitle(f"{name}   ·   occupied-zone {r['Tocc']:.1f} °C, return {r['Tret_fo']:.1f} °C, "
                  f"ankle→head ΔT {r['strat_01_11']:+.1f} K, ε = {r['eps']:.2f}",
                  x=0.01, ha="left", color=INK, fontsize=10.5)
     fig.savefig(os.path.join(OUT, f"slices_{name}.png"), dpi=110, bbox_inches="tight")
