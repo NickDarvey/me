@@ -240,6 +240,38 @@ def profile_plot(data):
     plt.close(fig)
 
 
+def summary_plot(data):
+    rows = {m: sorted([r for r, _ in data.values() if r["mode"] == m and r["refine"] == 1],
+                      key=lambda r: r["elec_vs_ideal"]) for m in ("cool", "heat")}
+    fig, axs = plt.subplots(2, 1, figsize=(8, 7.2),
+                            gridspec_kw=dict(height_ratios=[len(rows["cool"]), len(rows["heat"])]))
+    for ax, m in zip(axs, ("cool", "heat")):
+        rs = rows[m]
+        ys = np.arange(len(rs))[::-1]
+        vals = [100 * (r["elec_vs_ideal"] - 1) for r in rs]
+        ax.barh(ys, vals, height=0.55, color=[COL[r["geom"]] for r in rs])
+        ax.set_yticks(ys, [LABEL[r["geom"]] + (f", vanes {r['angle']}° down" if r["angle"] else "")
+                           for r in rs], fontsize=8.5, color=INK2)
+        for yy, v in zip(ys, vals):
+            ax.text(v + (1 if v >= 0 else -1), yy, f"{v:+.0f}%", va="center",
+                    ha="left" if v >= 0 else "right", fontsize=8.5, color=INK)
+        ax.axvline(0, color="#c3c2b7", lw=1)
+        ax.grid(axis="x", color=GRID, lw=.6); ax.set_axisbelow(True)
+        for sp_ in ("top", "right", "left"):
+            ax.spines[sp_].set_visible(False)
+        ax.tick_params(axis="y", length=0)
+        lim = max(abs(v) for v in vals) * 1.25 + 3
+        ax.set_xlim(min(-10, min(vals) * 1.3 - 3), lim)
+        ax.set_title(("Cooling" if m == "cool" else "Heating") +
+                     " - compressor electricity to hold the occupied zone at " +
+                     ("24 °C" if m == "cool" else "21 °C") + ", vs a perfectly mixed room",
+                     loc="left", fontsize=9.5)
+    axs[1].set_xlabel("change in electricity vs perfectly mixed room (same airflow)")
+    fig.tight_layout()
+    fig.savefig(os.path.join(OUT, "summary_energy.png"), dpi=120, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     data = {}
     for case in sorted(glob.glob(os.path.join(CASES, "*"))):
@@ -252,6 +284,7 @@ def main():
               f"eps {r['eps']:.3f} strat {r['strat_01_11']:+.2f} ADPI {r['adpi']:4.0f} "
               f"draught {r['draught_pct']:4.0f}% ACE {r['ace']:.2f} elec {r['elec_vs_ideal']:.3f}")
     profile_plot(data)
+    summary_plot(data)
     json.dump([r for r, _ in data.values()], open(os.path.join(OUT, "metrics.json"), "w"), indent=1)
 
 
